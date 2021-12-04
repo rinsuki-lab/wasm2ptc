@@ -160,6 +160,43 @@ DEF {local_name}(PTR%)
     RETURN C%
 END\n
 """)
+            elif import_name == "vsync":
+                func_return_types[local_name] = "void"
+                out.write(f"""'IMPORT BASIC FUNC
+DEF {local_name} FRAME%
+    VSYNC FRAME%
+END\n
+""")
+            elif import_name == "acls":
+                func_return_types[local_name] = "void"
+                out.write(f"""'IMPORT BASIC FUNC
+DEF {local_name} DUMMY%
+    ACLS
+END\n
+""")
+            elif import_name == "rnd":
+                func_return_types[local_name] = "i32"
+                print("# import", local_name)
+                out.write(f"""'IMPORT BASIC FUNC
+DEF {local_name}(MAX%)
+    RETURN RND(MAX%)
+END\n
+""")
+            elif import_name == "beep":
+                func_return_types[local_name] = "void"
+                out.write(f"""'IMPORT BASIC FUNC
+DEF {local_name} NUM%
+    BEEP NUM%
+END\n
+""")
+            elif import_name == "button":
+                func_return_types[local_name] = "i32"
+                print("# import", local_name)
+                out.write(f"""'IMPORT BASIC FUNC
+DEF {local_name}(MODE%)
+    RETURN BUTTON(MODE%)
+END\n
+""")
         else:
             print("# not supporting import", import_type)
     elif module_type == "func": # handle func
@@ -207,7 +244,7 @@ END\n
                     out.write(f"PUSH {stack_name(lt)}, POP({stack_name(lt)}) << POP({stack_name(lt)})\n")
                 elif elem == "i32.gt_u":
                     lt = "i32"
-                    out.write(f"PUSH {stack_name(lt)}, POP({stack_name(lt)}) > POP({stack_name(lt)})\n")
+                    out.write(f"PUSH {stack_name(lt)}, WASM_GT_U(POP({stack_name(lt)}), POP({stack_name(lt)}))\n")
                 elif elem == "i32.gt_s":
                     lt = "i32"
                     out.write(f"PUSH {stack_name(lt)}, POP({stack_name(lt)}) > POP({stack_name(lt)})\n")
@@ -217,6 +254,12 @@ END\n
                 elif elem == "i32.lt_s":
                     lt = "i32"
                     out.write(f"PUSH {stack_name(lt)}, POP({stack_name(lt)}) < POP({stack_name(lt)})\n")
+                elif elem == "i32.eq":
+                    lt = "i32"
+                    out.write(f"PUSH {stack_name(lt)}, POP({stack_name(lt)}) == POP({stack_name(lt)})\n")
+                elif elem == "i32.ne":
+                    lt = "i32"
+                    out.write(f"PUSH {stack_name(lt)}, POP({stack_name(lt)}) != POP({stack_name(lt)})\n")
                 elif elem == "global.get":
                     lt = "i32"
                     out.write(f"PUSH {stack_name(lt)}, GLOBAL{get_name(mod.pop(0))}\n")
@@ -251,6 +294,9 @@ END\n
                     out.write(f"IF POP({stack_name('i32')}) != 0 THEN {block_stack[-1-int(mod.pop(0))]}\n")
                 elif elem == "br":
                     out.write(f"{block_stack[-1-int(mod.pop(0))]}\n")
+                elif elem == "select":
+                    lt = "i32"
+                    out.write(f"PUSH {stack_name(lt)}, WASMSELECT(POP({stack_name(lt)}), POP({stack_name(lt)}), POP({stack_name(lt)}))\n")
                 else:
                     out.write(f"' UNKNOWN: " + elem + "\n")
                     pprint(elem)

@@ -4,3 +4,4 @@
 log.*
 *.ptc
 *.txt
+!runtime.txt
