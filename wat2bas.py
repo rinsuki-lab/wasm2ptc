@@ -62,12 +62,12 @@ def parse_s():
             return result
         elif not comment_now:
             if c == "\"":
-            result.append(SString())
-        elif c == "(":
-            result.append(parse_s())
-        else:
+                result.append(SString())
+            elif c == "(":
+                result.append(parse_s())
+            else:
                 maybe_comment = c == ";"
-            current += c
+                current += c
 
 RE_SEMIINDEX = re.compile("^;([0-9]+);$")
 
@@ -105,6 +105,9 @@ types = {}
 out.write("""
 DIM MEMORY%[&HFFFF]
 """)
+out.write(open("./runtime.txt", "r").read())
+
+func_return_types = {}
 
 main_func = ""
 
@@ -122,26 +125,14 @@ for mod in modules:
         import_obj = mod.pop(0)
         import_type = import_obj.pop(0)
         if import_type == "func":
+            print("# import", import_name)
+            local_name = get_name(import_obj.pop(0))
             if import_name == "print":
+                print("# import", local_name)
+                func_return_types[local_name] = "void"
                 out.write(f"""'IMPORT BASIC FUNC
-DEF WRITE8 PTR%, V%
-    VAR ADDR%, SHIFT%, MASK%
-    ADDR% = PTR% >> 2
-    SHIFT% = (PTR% AND &B11) << 3
-    MASK% = &HFF << SHIFT%
-    MEMORY%[ADDR%] = ((V% AND &HFF)<<SHIFT%) OR (MEMORY%[ADDR%] AND (&HFFFFFFFF XOR MASK%))
-END
-DEF READ8(PTR%)
-    VAR ADDR%, SHIFT%
-    ADDR% = PTR% >> 2
-    SHIFT% = (PTR% AND &B11) << 3
-    RETURN (MEMORY%[ADDR%] >> SHIFT%) AND &HFF
-END
-DEF READ16(PTR%)
-    RETURN READ8(PTR%) OR (READ8(PTR%+1) << 8)
-END
-DEF {get_name(import_obj.pop(0))} PTR%
-    ?"DEBUG:PRINT_CALLED", PTR%
+DEF {local_name} PTR%
+    ' ?"DEBUG:PRINT_CALLED", PTR%
     VAR C%
     WHILE TRUE
         C% = READ16(PTR%)
@@ -151,14 +142,35 @@ DEF {get_name(import_obj.pop(0))} PTR%
     WEND
 END\n
 """)
+            elif import_name == "input_int32":
+                func_return_types[local_name] = "i32"
+                print("# import", local_name)
+                out.write(f"""'IMPORT BASIC FUNC
+DEF {local_name}(PTR%)
+    VAR C%
+    IF PTR% != 0 THEN
+        WHILE TRUE
+            C% = READ16(PTR%)
+            PTR% = PTR% + 2
+            IF C% == 0 THEN BREAK
+            PRINT CHR$(C%);
+        WEND
+    ENDIF
+    INPUT C%
+    RETURN C%
+END\n
+""")
         else:
             print("# not supporting import", import_type)
     elif module_type == "func": # handle func
         name = get_name(mod.pop(0))
         print(name)
         out.write(f"DEF {name}\n")
-        out.write(f"DIM {stack_name('i32')}[0], {stack_name('f64')}[0]\n")
+        out.write(f"DIM {stack_name('i32')}[0], {stack_name('f64')}[0], JMPSTACK$[0]\n")
         local_types = []
+        end_stack = []
+        block_stack = ["RETURN"]
+        block_index = 0
         while len(mod) > 0:
             elem = mod.pop(0)
             if type(elem) is list:
@@ -175,6 +187,9 @@ END\n
                     ii = int(mod.pop(0))
                     lt = local_types[ii]
                     out.write(f"LOCAL_{ii}{type_to_suffix(lt)} = POP({stack_name(lt)})\n")
+                elif elem == "local.tee":
+                    ii = int(mod.pop(0))
+                    out.write(f"LOCAL_{ii}{type_to_suffix(lt)} = {stack_name(lt)}[LEN({stack_name(lt)})-1]\n")
                 elif elem == "i32.const":
                     out.write(f"PUSH {stack_name('i32')}, {mod.pop(0)}\n")
                 elif elem == "local.get":
@@ -187,6 +202,21 @@ END\n
                 elif elem == "i32.add":
                     lt = "i32"
                     out.write(f"PUSH {stack_name(lt)}, POP({stack_name(lt)}) + POP({stack_name(lt)})\n")
+                elif elem == "i32.shl":
+                    lt = "i32"
+                    out.write(f"PUSH {stack_name(lt)}, POP({stack_name(lt)}) << POP({stack_name(lt)})\n")
+                elif elem == "i32.gt_u":
+                    lt = "i32"
+                    out.write(f"PUSH {stack_name(lt)}, POP({stack_name(lt)}) > POP({stack_name(lt)})\n")
+                elif elem == "i32.gt_s":
+                    lt = "i32"
+                    out.write(f"PUSH {stack_name(lt)}, POP({stack_name(lt)}) > POP({stack_name(lt)})\n")
+                elif elem == "i32.ge_s":
+                    lt = "i32"
+                    out.write(f"PUSH {stack_name(lt)}, POP({stack_name(lt)}) >= POP({stack_name(lt)})\n")
+                elif elem == "i32.lt_s":
+                    lt = "i32"
+                    out.write(f"PUSH {stack_name(lt)}, POP({stack_name(lt)}) < POP({stack_name(lt)})\n")
                 elif elem == "global.get":
                     lt = "i32"
                     out.write(f"PUSH {stack_name(lt)}, GLOBAL{get_name(mod.pop(0))}\n")
@@ -196,7 +226,29 @@ END\n
                 elif elem == "return":
                     out.write("RETURN\n")
                 elif elem == "call":
-                    out.write(f"{get_name(mod.pop(0))} POP({stack_name('i32')})\n")
+                    func_name = get_name(mod.pop(0))
+                    return_type = func_return_types[func_name]
+                    if return_type == "void":
+                        out.write(f"{func_name} POP({stack_name('i32')})\n")
+                    elif return_type == "i32":
+                        out.write(f"PUSH {stack_name('i32')}, {func_name}(POP({stack_name('i32')}))\n")
+                elif elem == "end":
+                    block_stack.pop()
+                    out.write(end_stack.pop())
+                elif elem == "block":
+                    out.write(f"@BS_{block_index}\n")
+                    block_stack.append(f"GOTO @BE_{block_index}")
+                    end_stack.append(f"@BE_{block_index}\n")
+                    block_index += 1
+                # elif elem == "loop":
+                #     out.write(f"WHILE 1\n")
+                #     end_stack.append("WEND\n")
+                elif elem == "i32.load":
+                    out.write(f"PUSH {stack_name('i32')}, READ32(POP({stack_name('i32')}))\n")
+                elif elem == "br_if":
+                    out.write(f"IF POP({stack_name('i32')}) != 0 THEN {block_stack[-1-int(mod.pop(0))]}\n")
+                elif elem == "br":
+                    out.write(f"{block_stack[-1-int(mod.pop(0))]}\n")
                 else:
                     out.write(f"' UNKNOWN: " + elem + "\n")
                     pprint(elem)
@@ -213,7 +265,9 @@ END\n
                     address = int(elem[1])
             elif type(elem) is SString:
                 for c in elem.bytes:
-                    out.write(f"WRITE8 {address}, {c}\n")
+                    if c != 0:
+                        # skip 0
+                        out.write(f"WRITE8 {address}, {c}\n")
                     address += 1
             else:
                 pprint(elem)
