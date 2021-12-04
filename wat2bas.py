@@ -12,17 +12,19 @@ out = open(sys.argv[2], "w") if len(sys.argv) >= 3 else sys.stdout
 class SString:
     """S式内のstring"""
     def __init__(self):
-        s = ""
+        s = b""
         escape_mode = False
         while True:
             c = inp.read(1)
             if escape_mode:
                 if c == "n":
-                    s += "\n"
-                elif c == "0":
-                    s += chr(int("0" + inp.read(1), 16))
+                    s += b"\n"
+                elif c in "0123456789abcdef":
+                    c += inp.read(1)
+                    s += bytes([int(c, 16)])
                 else:
-                    s += c
+                    print("fall", c)
+                    s += c.encode("ascii")
                 escape_mode = False
             elif c == "\\":
                 escape_mode = True
@@ -31,8 +33,10 @@ class SString:
             elif c == "":
                 raise Exception("invalid string terminate")
             else:
-                s += c
-        self.value = s
+                s += c.encode("utf-8")
+        print(s)
+        self.bytes = s
+        self.value = s.decode("latin-1")
     
     def __repr__(self) -> str:
         return "SString("+pformat(self.value)+")"
@@ -200,8 +204,7 @@ END\n
                 if elem[0] == "i32.const":
                     address = int(elem[1])
             elif type(elem) is SString:
-                cc = elem.value.encode("utf-8")
-                for c in cc:
+                for c in elem.bytes:
                     out.write(f"WRITE8 {address}, {c}\n")
                     address += 1
             else:
