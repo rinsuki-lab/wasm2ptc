@@ -44,21 +44,29 @@ class SString:
 def parse_s():
     result = []
     current = ""
+    maybe_comment = False
+    comment_now = False
     while True:
         c = inp.read(1)
-        if c == "" or c == ")":
-            if len(current) > 0:
-                result.append(current)
-            return result
-        elif (c == " " or c == "\n"):
+        if maybe_comment and c == ";":
+            current = current[:-1]
+            comment_now = True
+        if c == "\n" if comment_now else (c == " " or c == "\n"):
             if len(current) > 0:
                 result.append(current)
                 current = ""
-        elif c == "\"":
+            comment_now = False
+        elif c == "" or c == ")":
+            if len(current) > 0:
+                result.append(current)
+            return result
+        elif not comment_now:
+            if c == "\"":
             result.append(SString())
         elif c == "(":
             result.append(parse_s())
         else:
+                maybe_comment = c == ";"
             current += c
 
 RE_SEMIINDEX = re.compile("^;([0-9]+);$")
