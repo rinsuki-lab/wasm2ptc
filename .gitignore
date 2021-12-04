@@ -1,0 +1,6 @@
+*.o
+*.wat
+*.wasm
+log.*
+*.ptc
+*.txt
