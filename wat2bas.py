@@ -240,9 +240,11 @@ END\n
                     block_stack.append(f"GOTO @BE_{block_index}")
                     end_stack.append(f"@BE_{block_index}\n")
                     block_index += 1
-                # elif elem == "loop":
-                #     out.write(f"WHILE 1\n")
-                #     end_stack.append("WEND\n")
+                elif elem == "loop":
+                    out.write(f"@BS_{block_index}\n")
+                    block_stack.append(f"GOTO @BS_{block_index}")
+                    end_stack.append(f"@BE_{block_index}\n")
+                    block_index += 1
                 elif elem == "i32.load":
                     out.write(f"PUSH {stack_name('i32')}, READ32(POP({stack_name('i32')}))\n")
                 elif elem == "br_if":
