@@ -16,4 +16,4 @@ a.o: a.c
 	/usr/local/opt/llvm/bin/clang -c -Os --target=wasm32-wasm -o $@ $<
 
 clean:
-	rm a.ptc a.ptc.txt a.wat a.wasm
+	rm a.ptc a.ptc.txt a.wat a.wasm a.o
