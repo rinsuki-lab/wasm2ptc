@@ -5,3 +5,4 @@ log.*
 *.ptc
 *.txt
 !runtime.txt
+/rust/target

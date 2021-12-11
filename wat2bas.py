@@ -102,8 +102,8 @@ modules.pop(0)
 
 types = {}
 
-out.write("""
-DIM MEMORY%[&HFFFF]
+out.write(f"""
+DIM MEMORY%[{17 * 16384}]
 """)
 out.write(open("./runtime.txt", "r").read())
 

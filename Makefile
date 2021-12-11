@@ -15,5 +15,15 @@ a.wasm: a.o
 a.o: a.c
 	/usr/local/opt/llvm/bin/clang -c -Os --target=wasm32-wasm -o $@ $<
 
+.PHONY: clean rust
+
 clean:
 	rm a.ptc a.ptc.txt a.wat a.wasm a.o
+
+rust:
+	# You need to install wasm-snip by `cargo install wasm-snip`
+	cd rust && cargo build --target wasm32-unknown-unknown --release
+	wasm-snip --snip-rust-fmt-code --snip-rust-panicking-code -o rust/target/wasm32-unknown-unknown/release/rust.snipped.wasm rust/target/wasm32-unknown-unknown/release/rust.wasm
+	wasm-strip rust/target/wasm32-unknown-unknown/release/rust.snipped.wasm
+	wasm-opt -o a.wasm -Oz rust/target/wasm32-unknown-unknown/release/rust.snipped.wasm
+	make a.ptc
